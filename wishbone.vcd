@@ -1,0 +1,174 @@
+$date
+	Wed Apr 01 18:23:44 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module wishbone_tb $end
+$var wire 1 ! we $end
+$var wire 1 " stb $end
+$var wire 8 # dat_o [7:0] $end
+$var wire 8 $ dat_i [7:0] $end
+$var wire 1 % cyc $end
+$var wire 1 & busy $end
+$var wire 8 ' adr [7:0] $end
+$var wire 1 ( ack $end
+$var reg 8 ) adr_in [7:0] $end
+$var reg 1 * clk $end
+$var reg 1 + rst $end
+$var reg 1 , start $end
+$var reg 8 - wr_dat_in [7:0] $end
+$scope module master $end
+$var wire 8 . adr_in [7:0] $end
+$var wire 1 * clk $end
+$var wire 8 / dat_in [7:0] $end
+$var wire 1 + rst $end
+$var wire 1 , start $end
+$var wire 8 0 dat_i [7:0] $end
+$var wire 1 ( ack $end
+$var reg 8 1 adr [7:0] $end
+$var reg 1 & busy $end
+$var reg 1 % cyc $end
+$var reg 8 2 dat_o [7:0] $end
+$var reg 1 " stb $end
+$var reg 1 ! we $end
+$upscope $end
+$scope module slave $end
+$var wire 8 3 adr [7:0] $end
+$var wire 1 * clk $end
+$var wire 1 % cyc $end
+$var wire 8 4 dat_o [7:0] $end
+$var wire 1 + rst $end
+$var wire 1 " stb $end
+$var wire 1 ! we $end
+$var reg 1 ( ack $end
+$var reg 8 5 dat_i [7:0] $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$comment Show the parameter values. $end
+$dumpall
+$end
+#0
+$dumpvars
+bx 5
+b0 4
+b0 3
+b0 2
+b0 1
+bx 0
+b0 /
+b0 .
+b0 -
+0,
+1+
+0*
+b0 )
+0(
+b0 '
+0&
+0%
+bx $
+b0 #
+0"
+0!
+$end
+#5000
+1*
+#10000
+0*
+#15000
+1*
+#20000
+0*
+0+
+#25000
+1&
+b10101010 #
+b10101010 2
+b10101010 4
+b10000 '
+b10000 1
+b10000 3
+1!
+1"
+1%
+1,
+b10101010 -
+b10101010 /
+b10000 )
+b10000 .
+1*
+#30000
+0*
+#35000
+1(
+0,
+1*
+#40000
+0*
+#45000
+0&
+0"
+0%
+1*
+#50000
+0*
+#55000
+0(
+1*
+#60000
+0*
+#65000
+1&
+b1010101 #
+b1010101 2
+b1010101 4
+b100000 '
+b100000 1
+b100000 3
+1"
+1%
+1,
+b1010101 -
+b1010101 /
+b100000 )
+b100000 .
+1*
+#70000
+0*
+#75000
+1(
+0,
+1*
+#80000
+0*
+#85000
+0&
+0"
+0%
+1*
+#90000
+0*
+#95000
+0(
+1*
+#100000
+0*
+#105000
+1*
+#110000
+0*
+#115000
+1*
+#120000
+0*
+#125000
+1*
+#130000
+0*
+#135000
+1*
