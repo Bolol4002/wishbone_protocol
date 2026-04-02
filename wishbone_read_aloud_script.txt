@@ -1,0 +1,213 @@
+Wishbone Read-Aloud Script
+Purpose: Read each line aloud followed by a short explanation. Use a steady, clear pace.
+
+--- wishbone_slave.v ---
+1: module wishbone_slave(  — Declares the slave module named wishbone_slave.
+2:     input clk,           — 'clk' is the clock input used to synchronize logic.
+3:     input rst,           — 'rst' is an active-high reset to initialize the slave.
+4:     input cyc,           — 'cyc' signals an active bus cycle from the master.
+5:     input stb,           — 'stb' (strobe) indicates a valid data transfer phase.
+6:     input we,            — 'we' indicates a write when high; otherwise read.
+7:     input [7:0] adr,     — 'adr' is the 8-bit address bus from the master.
+8:     input [7:0] dat_o,   — 'dat_o' is data output from master to slave (write data).
+9:                       — (blank line / spacing)
+10:     output reg ack,     — 'ack' is an acknowledge output from the slave.
+11:     output reg [7:0] dat_i — 'dat_i' is data input to master (read data from slave).
+12: );                    — End of port list.
+13:                       — (blank line)
+14: reg [7:0] memory [0:255]; — Internal memory array: 256 bytes of 8-bit storage.
+15:                       — (blank line)
+16: always @(posedge clk or posedge rst) — Synchronous block triggered on clock or reset.
+17: begin                 — Begin always block.
+18:     if (rst)           — If reset is asserted:
+19:     begin
+20:         ack <= 0;      — Deassert acknowledge to start clean.
+21:     end
+22:     else
+23:     begin
+24:         if (cyc && stb) — If master indicates an active cycle and strobe is asserted:
+25:         begin
+26:             ack <= 1;   — Assert acknowledge to complete the handshake.
+27:                       — (blank line)
+28:             if (we)     — If write enable is high:
+29:                 memory[adr] <= dat_o;   — Write the master's data into memory at address 'adr'.
+30:             else
+31:                 dat_i <= memory[adr];   — Otherwise, place memory contents onto dat_i for master to read.
+32:         end
+33:         else
+34:             ack <= 0;   — When not selected, keep ack deasserted.
+35:     end
+36: end
+37:                       — (blank line)
+38: endmodule             — End of slave module.
+
+Spoken notes for slave: Emphasize handshake: master drives cyc+stb, slave responds with ack. For writes, slave stores dat_o to memory. For reads, slave places stored data onto dat_i.
+
+--- wishbone_master.v ---
+1: module wishbone_master( — Declares the master module named wishbone_master.
+2:     input clk,           — Clock input for sequencing transactions.
+3:     input rst,           — Active-high reset input.
+4:     input ack,           — 'ack' from the slave: indicates transfer completion.
+5:     input [7:0] dat_i,   — Data from slave to master (read data).
+6:     input start,         — 'start' is a single-cycle request to initiate a transfer.
+7:     input [7:0] adr_in,  — Address input to request for the transfer.
+8:     input [7:0] dat_in,  — Data to be written for write operations.
+9:                       — (blank line)
+10:     output reg cyc,     — 'cyc' signals the start and duration of a bus cycle.
+11:     output reg stb,     — 'stb' asserts the transfer phase when valid.
+12:     output reg we,      — 'we' set high for writes; low for reads.
+13:     output reg [7:0] dat_o, — Data output from master to slave for writes.
+14:     output reg [7:0] adr, — Address output on the bus.
+15:     output reg busy     — 'busy' indicates the master is performing a transaction.
+16: );                    — End of port list.
+17:                       — (blank line)
+18: always @(posedge clk or posedge rst) — Synchronous logic on clock or reset.
+19: begin
+20:     if (rst)
+21:     begin
+22:         cyc <= 0;      — Clear cyc on reset.
+23:         stb <= 0;      — Clear strobe on reset.
+24:         we <= 0;       — Default to read (we=0) on reset.
+25:         adr <= 0;      — Clear address register.
+26:         dat_o <= 0;    — Clear data output register.
+27:         busy <= 0;     — Not busy after reset.
+28:     end
+29:     else
+30:     begin
+31:         if (!busy && start) — If not already busy and a start request arrives:
+32:         begin
+33:             cyc <= 1;   — Begin a bus cycle.
+34:             stb <= 1;   — Assert strobe to indicate valid transfer phase.
+35:             we <= 1;    // write operation — This master chooses a write operation here.
+36:             adr <= adr_in; — Latch the requested address onto bus.
+37:             dat_o <= dat_in; — Latch the data to be written onto bus.
+38:             busy <= 1;  — Mark the master as busy until ack arrives.
+39:         end
+40:         else if (busy && ack) — If waiting and slave asserts ack:
+41:         begin
+42:             cyc <= 0;   — End the bus cycle.
+43:             stb <= 0;   — Deassert strobe.
+44:             busy <= 0;  — No longer busy.
+45:         end
+46:     end
+47: end
+48:                       — (blank line)
+49: endmodule             — End of master module.
+
+Spoken notes for master: This simple master initiates write transfers when 'start' pulses. It sets cyc/stb/we and waits for ack. On ack it releases the bus. Mention that we=1 fixes this master to only perform writes in this example.
+
+--- wishbone_tb.v (testbench) ---
+1: `include "wishbone_master.v"  — Include master source so simulator knows its implementation.
+2: `include "wishbone_slave.v"   — Include slave source as well.
+3: `timescale 1ns/1ps            — Time units: 1 ns, precision: 1 ps.
+4: module wishbone_tb;           — Start of testbench module.
+5:                              — (blank)
+6: reg clk;                      — Testbench clock signal.
+7: reg rst;                      — Testbench reset signal.
+8: reg start;                    — Start pulse to trigger master transactions.
+9: reg [7:0] adr_in;             — Address input for the master instance.
+10: reg [7:0] wr_dat_in;         — Write data input for the master.
+11:                             — (blank)
+12: wire cyc;                    — Wires for bus control and status signals.
+13: wire stb;
+14: wire we;
+15: wire ack;
+16: wire busy;
+17:                             — (blank)
+18: wire [7:8] adr;               — Address wire from master to slave. (Note: in code it's [7:0])
+19: wire [7:0] dat_o;             — Data from master to slave.
+20: wire [7:0] dat_i;             — Data from slave to master.
+21:                             — (blank)
+22: // Instantiate Master
+23: wishbone_master master (      — Create an instance named 'master'.
+24:     .clk(clk),                — Connect testbench clk to master clk.
+25:     .rst(rst),                — Connect reset.
+26:     .ack(ack),                — Connect slave ack back to master.
+27:     .dat_i(dat_i),            — Connect read data into master.
+28:     .start(start),            — Start control.
+29:     .adr_in(adr_in),          — Address input.
+30:     .dat_in(wr_dat_in),       — Write data input.
+31:     .cyc(cyc),                — Bus outputs wired back to testbench wires.
+32:     .stb(stb),
+33:     .we(we),
+34:     .dat_o(dat_o),
+35:     .adr(adr),
+36:     .busy(busy)
+37: );
+38:                             — (blank)
+39: // Instantiate Slave
+40: wishbone_slave slave (
+41:     .clk(clk),
+42:     .rst(rst),
+43:     .cyc(cyc),
+44:     .stb(stb),
+45:     .we(we),
+46:     .adr(adr),
+47:     .dat_o(dat_o),
+48:     .ack(ack),
+49:     .dat_i(dat_i)
+50: );
+51:                             — (blank)
+52: always #5 clk = ~clk;        — Clock generator: toggle every 5 time units => 10 ns period.
+53:                             — (blank)
+54: always @(posedge clk)
+55: begin
+56:     $display("%0t\t%0b    %0b   %0b   %0b  %0b   0x%0h  0x%0h  0x%0h", $time, busy, cyc, stb, we, ack, adr, dat_o, dat_i);
+57: end                         — Print status on every clock edge for visibility.
+58:                             — (blank)
+59: initial
+60: begin
+61:     $dumpfile("wishbone.vcd"); — Create waveform dump file for viewing in a viewer.
+62:     $dumpvars(0, wishbone_tb);  — Dump all variables in the testbench hierarchy.
+63:                             — (blank)
+64:     clk = 0;                   — Initialize signals.
+65:     rst = 1;
+66:     start = 0;
+67:     adr_in = 8'h00;
+68:     wr_dat_in = 8'h00;
+69:                             — (blank)
+70:     $display("Time\tbusy cyc stb we ack adr dat_o dat_i"); — Header for prints.
+71:                             — (blank)
+72:     #20 rst = 0;               — Release reset after 20 time units.
+73:                             — (blank)
+74:     // Write 0xAA to address 0x10
+75:     @(posedge clk);            — Wait for next rising clock before changing inputs.
+76:     adr_in = 8'h10;            — Set target address.
+77:     wr_dat_in = 8'hAA;         — Set write data.
+78:     start = 1;                 — Pulse start to initiate the write.
+79:     @(posedge clk);
+80:     start = 0;                 — Deassert start after one cycle.
+81:                             — (blank)
+82:     wait (ack == 1);           — Wait until slave asserts ack.
+83:     wait (ack == 0);           — Then wait until ack is released (transaction complete).
+84:                             — (blank)
+85:     // Write 0x55 to address 0x20
+86:     @(posedge clk);
+87:     adr_in = 8'h20;
+88:     wr_dat_in = 8'h55;
+89:     start = 1;
+90:     @(posedge clk);
+91:     start = 0;
+92:                             — (blank)
+93:     wait (ack == 1);
+94:     wait (ack == 0);
+95:     repeat (3) @(posedge clk); — Wait a few cycles after the transactions.
+96:                             — (blank)
+97:     $display("Memory[0x10]=0x%0h", slave.memory[8'h10]); — Display contents read from the slave's memory for verification.
+98:     $display("Memory[0x20]=0x%0h", slave.memory[8'h20]);
+99:                             — (blank)
+100:     #10;
+101:     $finish;                  — End the simulation.
+102: end
+103:                             — (blank)
+104: endmodule
+105:                             — (end of file)
+
+Spoken notes for testbench: Walk listeners through the flow: reset, two write transactions, waiting for ack each time, then printing memory contents. Mention waveform dump and printed logs for debugging.
+
+Usage tips for presenting aloud:
+- Read the code line, pause, then read the explanation.
+- For blocks, summarize in one sentence before reading lines inside the block.
+- For timing lines like #20 or always #5, explain the effect in real time (for example: "#20 delays 20 ns").
+
+End of script.
