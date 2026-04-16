@@ -64,7 +64,7 @@ The Master initiates bus transactions. It waits for an external `start` pulse, t
 | Port     | Direction | Width | Description                              |
 |----------|-----------|-------|------------------------------------------|
 | `clk`    | Input     | 1     | System clock                             |
-| `rst`    | Input     | 1     | Synchronous reset (active high)          |
+| `rst`    | Input     | 1     | Asynchronous reset (active high)         |
 | `ack`    | Input     | 1     | Acknowledge from Slave                   |
 | `dat_i`  | Input     | 8     | Data input from Slave (for reads)        |
 | `start`  | Input     | 1     | Pulse high to begin a transaction        |
@@ -78,7 +78,7 @@ The Master initiates bus transactions. It waits for an external `start` pulse, t
 | `busy`   | Output    | 1     | High while a transaction is in progress  |
 
 **State behaviour:**
-- On `rst`: all outputs cleared.
+- On `rst`: all outputs cleared immediately.
 - On `start` (when not `busy`): asserts `cyc`, `stb`, `we`, latches address and data, sets `busy`.
 - On `ack` (while `busy`): de-asserts `cyc`, `stb`, clears `busy`.
 
@@ -107,7 +107,7 @@ The Slave contains a **256 × 8-bit internal memory**. It responds whenever `cyc
 - On `cyc && stb`:
   - If `we == 1`: writes `dat_o` into `memory[adr]`.
   - If `we == 0`: reads `memory[adr]` onto `dat_i`.
-  - Asserts `ack = 1`.
+  - Asserts `ack = 1` on the clock edge.
 - Otherwise: de-asserts `ack`.
 
 ---
@@ -164,7 +164,7 @@ ack  __________/    \________________
 
 1. Master asserts `cyc = 1`, `stb = 1`, `we = 1`, and drives `adr` and `dat_o`.
 2. Slave detects `cyc && stb`, writes data to memory, asserts `ack = 1`.
-3. Master detects `ack`, de-asserts `cyc` and `stb`, clears `busy`.
+3. Master detects `ack` on a clock edge, de-asserts `cyc` and `stb`, clears `busy`.
 
 ### Read Cycle
 

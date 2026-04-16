@@ -4,7 +4,7 @@ Purpose: Read each line aloud followed by a short explanation. Use a steady, cle
 --- wishbone_slave.v ---
 1: module wishbone_slave(  — Declares the slave module named wishbone_slave.
 2:     input clk,           — 'clk' is the clock input used to synchronize logic.
-3:     input rst,           — 'rst' is an active-high reset to initialize the slave.
+3:     input rst,           — 'rst' is an active-high asynchronous reset to initialize the slave.
 4:     input cyc,           — 'cyc' signals an active bus cycle from the master.
 5:     input stb,           — 'stb' (strobe) indicates a valid data transfer phase.
 6:     input we,            — 'we' indicates a write when high; otherwise read.
@@ -17,7 +17,7 @@ Purpose: Read each line aloud followed by a short explanation. Use a steady, cle
 13:                       — (blank line)
 14: reg [7:0] memory [0:255]; — Internal memory array: 256 bytes of 8-bit storage.
 15:                       — (blank line)
-16: always @(posedge clk or posedge rst) — Synchronous block triggered on clock or reset.
+16: always @(posedge clk or posedge rst) — Sequential block triggered on clock or asynchronous reset.
 17: begin                 — Begin always block.
 18:     if (rst)           — If reset is asserted:
 19:     begin
@@ -114,7 +114,7 @@ Spoken notes for master: This simple master initiates write transfers when 'star
 15: wire ack;
 16: wire busy;
 17:                             — (blank)
-18: wire [7:8] adr;               — Address wire from master to slave. (Note: in code it's [7:0])
+18: wire [7:0] adr;               — Address wire from master to slave.
 19: wire [7:0] dat_o;             — Data from master to slave.
 20: wire [7:0] dat_i;             — Data from slave to master.
 21:                             — (blank)
