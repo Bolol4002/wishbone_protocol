@@ -1,0 +1,1022 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tikz}
+\usepackage{circuitikz}
+
+% Code formatting
+\lstset{
+    language=Verilog,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    breaklines=true,
+    showstringspaces=false,
+    tabsize=4,
+    frame=single,
+    rulecolor=\color{black!30}
+}
+
+\title{\textbf{Wishbone Bus Protocol Specification}}
+\author{Wishbone Open Core Bus Architecture}
+\date{Revision 1.0 \\ \today}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Wishbone Bus Protocol}
+\lhead{Specification Document}
+\cfoot{\thepage}
+
+\begin{document}
+
+\maketitle
+
+\newpage
+\tableofcontents
+\newpage
+
+%=====================================================
+\section{Introduction}
+%=====================================================
+
+\subsection{Overview}
+The Wishbone Bus Protocol is a simple, yet flexible open-source bus architecture designed for System-on-Chip (SoC) integration. It provides a standardized interface for connecting master and slave peripherals within a digital system. This specification defines a detailed architecture for an 8-bit Wishbone bus implementation with synchronous operation.
+
+\subsection{Purpose and Scope}
+This document specifies the complete behavior, signal definitions, and operational protocols for a Wishbone-based system. The specification covers:
+\begin{itemize}
+    \item Signal definitions and timing characteristics
+    \item Master and slave interface specifications
+    \item Transaction protocols and handshaking mechanisms
+    \item Memory access operations (read and write)
+    \item Timing diagrams and signal relationships
+    \item Implementation guidelines for both masters and slaves
+\end{itemize}
+
+\subsection{Design Goals}
+\begin{enumerate}
+    \item \textbf{Simplicity}: Minimal signal count and straightforward handshaking
+    \item \textbf{Flexibility}: Support for multiple masters and slaves on a single bus
+    \item \textbf{Scalability}: Extensible to larger data widths and address spaces
+    \item \textbf{Synchronous Operation}: Clock-based timing for predictable behavior
+    \item \textbf{Ease of Implementation}: Simple state machines for master and slave logic
+\end{enumerate}
+
+%=====================================================
+\section{System Architecture}
+%=====================================================
+
+\subsection{Bus Topology}
+The Wishbone bus uses a shared bus architecture where:
+\begin{itemize}
+    \item Multiple master devices can initiate transactions
+    \item Multiple slave devices can respond to master requests
+    \item A central arbiter (not specified in this document) arbitrates master access
+    \item All signals are synchronized to a common clock signal
+\end{itemize}
+
+\subsection{Data Width and Address Space}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|c|}
+        \hline
+        \textbf{Parameter} & \textbf{Value} \\
+        \hline
+        Data Width (DAT) & 8 bits \\
+        Address Width (ADR) & 8 bits \\
+        Maximum Addressable Memory & 256 locations (0x00 to 0xFF) \\
+        Clock Frequency & Application Dependent \\
+        \hline
+    \end{tabular}
+    \caption{System Parameters}
+\end{table}
+
+%=====================================================
+\section{Signal Definitions}
+%=====================================================
+
+\subsection{Global Signals}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|p{2cm}|p{1.5cm}|p{5cm}|}
+        \hline
+        \textbf{Signal Name} & \textbf{Width} & \textbf{Description} \\
+        \hline
+        CLK & 1 bit & Clock signal. All state changes occur on rising edges. \\
+        RST & 1 bit & Active-high asynchronous reset. Resets all modules to initial state. \\
+        \hline
+    \end{tabular}
+    \caption{Global Signals}
+\end{table}
+
+\subsection{Master Interface Signals}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|p{2cm}|p{1.5cm}|p{1cm}|p{4cm}|}
+        \hline
+        \textbf{Signal} & \textbf{Width} & \textbf{Dir.} & \textbf{Description} \\
+        \hline
+        CYC & 1 bit & Out & Cycle signal. Asserted by master to indicate an active bus cycle. \\
+        STB & 1 bit & Out & Strobe signal. Asserted to indicate valid address and data. \\
+        WE & 1 bit & Out & Write Enable. High for write operations, low for read operations. \\
+        ADR & 8 bits & Out & Address bus. Specifies the target memory address. \\
+        DAT\_O & 8 bits & Out & Data Output. Write data from master to slave. \\
+        ACK & 1 bit & In & Acknowledge signal. Asserted by slave to confirm transaction completion. \\
+        DAT\_I & 8 bits & In & Data Input. Read data from slave to master. \\
+        BUSY & 1 bit & Out & Busy flag. Indicates master is in a transaction. \\
+        START & 1 bit & In & Start signal. Request from external source to initiate a transaction. \\
+        ADR\_IN & 8 bits & In & Input address for the transaction. \\
+        DAT\_IN & 8 bits & In & Input write data for the transaction. \\
+        \hline
+    \end{tabular}
+    \caption{Master Interface Signals}
+\end{table}
+
+\subsection{Slave Interface Signals}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|p{2cm}|p{1.5cm}|p{1cm}|p{4cm}|}
+        \hline
+        \textbf{Signal} & \textbf{Width} & \textbf{Dir.} & \textbf{Description} \\
+        \hline
+        CYC & 1 bit & In & Cycle signal from master. \\
+        STB & 1 bit & In & Strobe signal from master. \\
+        WE & 1 bit & In & Write Enable signal from master. \\
+        ADR & 8 bits & In & Address bus from master. \\
+        DAT\_O & 8 bits & In & Data from master (write data). \\
+        ACK & 1 bit & Out & Acknowledge signal to master. \\
+        DAT\_I & 8 bits & Out & Data to master (read data). \\
+        \hline
+    \end{tabular}
+    \caption{Slave Interface Signals}
+\end{table}
+
+\subsection{Signal Descriptions}
+
+\subsubsection{CYC (Cycle)}
+\begin{itemize}
+    \item \textbf{Direction}: Master Output / Slave Input
+    \item \textbf{Width}: 1 bit
+    \item \textbf{Timing}: Asserted when a bus cycle begins, held throughout the cycle, deasserted when the cycle ends
+    \item \textbf{Purpose}: Indicates to all slaves that a valid bus cycle is in progress
+    \item \textbf{Protocol}: The master asserts CYC at the start of a transaction and keeps it asserted until the slave acknowledges with ACK
+\end{itemize}
+
+\subsubsection{STB (Strobe)}
+\begin{itemize}
+    \item \textbf{Direction}: Master Output / Slave Input
+    \item \textbf{Width}: 1 bit
+    \item \textbf{Timing}: Asserted synchronously with CYC
+    \item \textbf{Purpose}: Indicates that the address (ADR) and write data (DAT\_O) are valid
+    \item \textbf{Protocol}: Only the slave(s) selected by the address should respond when both CYC and STB are high
+\end{itemize}
+
+\subsubsection{WE (Write Enable)}
+\begin{itemize}
+    \item \textbf{Direction}: Master Output / Slave Input
+    \item \textbf{Width}: 1 bit
+    \item \textbf{Timing}: Valid during CYC and STB
+    \item \textbf{Purpose}: Specifies the transaction type
+    \item \textbf{Values}:
+    \begin{itemize}
+        \item WE = 1: Write operation (master to slave data transfer)
+        \item WE = 0: Read operation (slave to master data transfer)
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{ADR (Address Bus)}
+\begin{itemize}
+    \item \textbf{Direction}: Master Output / Slave Input
+    \item \textbf{Width}: 8 bits
+    \item \textbf{Timing}: Valid when CYC and STB are high
+    \item \textbf{Purpose}: Specifies the target memory location or register address
+    \item \textbf{Range}: 0x00 to 0xFF (256 addressable locations)
+\end{itemize}
+
+\subsubsection{DAT\_O (Data Output from Master)}
+\begin{itemize}
+    \item \textbf{Direction}: Master Output / Slave Input
+    \item \textbf{Width}: 8 bits
+    \item \textbf{Timing}: Valid when CYC, STB, and WE are high
+    \item \textbf{Purpose}: Carries write data from master to slave
+    \item \textbf{Hold Time}: Data is held stable until ACK is asserted
+\end{itemize}
+
+\subsubsection{DAT\_I (Data Input to Master)}
+\begin{itemize}
+    \item \textbf{Direction}: Slave Output / Master Input
+    \item \textbf{Width}: 8 bits
+    \item \textbf{Timing}: Valid when CYC and STB are high, and WE is low (read operation)
+    \item \textbf{Purpose}: Carries read data from slave to master
+    \item \textbf{Behavior}: Slave must drive this bus with the requested data at the target address
+\end{itemize}
+
+\subsubsection{ACK (Acknowledge)}
+\begin{itemize}
+    \item \textbf{Direction}: Slave Output / Master Input
+    \item \textbf{Width}: 1 bit
+    \item \textbf{Timing}: Asserted by slave in response to a valid transaction
+    \item \textbf{Purpose}: Signals transaction completion to the master
+    \item \textbf{Protocol}: 
+    \begin{itemize}
+        \item Asserted when CYC and STB conditions are met
+        \item Held high for one clock cycle
+        \item Signals both read and write completion
+    \end{itemize}
+\end{itemize}
+
+%=====================================================
+\section{Transaction Protocol}
+%=====================================================
+
+\subsection{Transaction Types}
+
+\subsubsection{Write Transaction}
+A write transaction transfers data from the master to the slave at a specified address.
+
+\textbf{Sequence}:
+\begin{enumerate}
+    \item Master asserts START signal with ADR\_IN (target address) and DAT\_IN (write data)
+    \item On next clock edge, master sets:
+    \begin{itemize}
+        \item CYC = 1
+        \item STB = 1
+        \item WE = 1 (write mode)
+        \item ADR = ADR\_IN
+        \item DAT\_O = DAT\_IN
+        \item BUSY = 1
+    \end{itemize}
+    \item Slave observes CYC=1, STB=1, WE=1 and valid ADR
+    \item Slave captures DAT\_O and writes to memory at address ADR
+    \item Slave asserts ACK = 1
+    \item Master observes ACK = 1 on next clock edge
+    \item Master deasserts:
+    \begin{itemize}
+        \item CYC = 0
+        \item STB = 0
+        \item BUSY = 0
+    \end{itemize}
+    \item Slave deasserts ACK = 0
+    \item Transaction completes
+\end{enumerate}
+
+\subsubsection{Read Transaction}
+A read transaction transfers data from the slave to the master from a specified address.
+
+\textbf{Sequence}:
+\begin{enumerate}
+    \item Master asserts START signal with ADR\_IN (target address), DAT\_IN = 0
+    \item On next clock edge, master sets:
+    \begin{itemize}
+        \item CYC = 1
+        \item STB = 1
+        \item WE = 0 (read mode)
+        \item ADR = ADR\_IN
+        \item BUSY = 1
+    \end{itemize}
+    \item Slave observes CYC=1, STB=1, WE=0 and valid ADR
+    \item Slave reads memory at address ADR and drives DAT\_I with the value
+    \item Slave asserts ACK = 1
+    \item Master observes ACK = 1 and captures DAT\_I on the same clock edge
+    \item Master deasserts:
+    \begin{itemize}
+        \item CYC = 0
+        \item STB = 0
+        \item BUSY = 0
+    \end{itemize}
+    \item Slave deasserts ACK = 0
+    \item Transaction completes
+\end{enumerate}
+
+\subsection{Transaction Timing}
+
+\textbf{Key Timing Characteristics}:
+\begin{itemize}
+    \item \textbf{Single-Cycle Transactions}: Both read and write complete in exactly 2 clock cycles from START assertion
+    \item \textbf{Setup Time}: Address and data must be stable before clock edge
+    \item \textbf{Hold Time}: Address and data are held through ACK assertion
+    \item \textbf{Clock-to-ACK Delay}: Slave ACK appears synchronously on clock edge following valid strobe signals
+\end{itemize}
+
+\subsection{Protocol Rules}
+
+\subsubsection{For Masters}
+\begin{enumerate}
+    \item Master must maintain CYC and STB asserted until ACK is received
+    \item Address (ADR) and write data (DAT\_O) must be stable while CYC and STB are asserted
+    \item Master must deassert CYC and STB within one clock cycle of observing ACK
+    \item BUSY signal must accurately reflect transaction state
+    \item START signal should be asserted for one clock cycle only
+\end{enumerate}
+
+\subsubsection{For Slaves}
+\begin{enumerate}
+    \item Slave must respond with ACK when both CYC and STB are high and addressing matches
+    \item For write transactions, slave must capture DAT\_O and store at address ADR
+    \item For read transactions, slave must immediately drive DAT\_I with data from address ADR
+    \item Slave must deassert ACK after one clock cycle
+    \item Slave must not respond to transactions when CYC or STB are low
+\end{enumerate}
+
+%=====================================================
+\section{Timing Diagrams}
+%=====================================================
+
+\subsection{Write Transaction Timing}
+
+\begin{figure}[H]
+\centering
+\begin{verbatim}
+Clock      ___     ___     ___     ___     ___     ___     ___
+           ___|   |___|   |___|   |___|   |___|   |___|   |___|
+START      ___
+           ____|_______________________
+           
+CYC        ___
+           ____|_________________|___________
+           
+STB        ___
+           ____|_________________|___________
+           
+WE         ___
+           ____________________________________
+           
+ADR        ___     [Valid Address]     [Valid Address]
+           ____|_________________|___________
+           
+DAT_O      ___     [Write Data]        [Write Data]
+           ____|_________________|___________
+           
+ACK        ___
+           ______________________|___________
+           
+BUSY       ___
+           ____|_________________|___________
+
+           Cycle 0  1      2      3      4
+           
+\end{verbatim}
+\caption{Write Transaction Timing Diagram}
+\end{figure}
+
+\subsection{Read Transaction Timing}
+
+\begin{figure}[H]
+\centering
+\begin{verbatim}
+Clock      ___     ___     ___     ___     ___     ___     ___
+           ___|   |___|   |___|   |___|   |___|   |___|   |___|
+START      ___
+           ____|_______________________
+           
+CYC        ___
+           ____|_________________|___________
+           
+STB        ___
+           ____|_________________|___________
+           
+WE         ___
+           ____________________________________
+           
+ADR        ___     [Valid Address]     [Valid Address]
+           ____|_________________|___________
+           
+DAT_I      ___     [Read Data]         [Read Data]
+           ____|_________________|___________
+           
+ACK        ___
+           ______________________|___________
+           
+BUSY       ___
+           ____|_________________|___________
+
+           Cycle 0  1      2      3      4
+           
+\end{verbatim}
+\caption{Read Transaction Timing Diagram}
+\end{figure}
+
+%=====================================================
+\section{Implementation Specifications}
+%=====================================================
+
+\subsection{Master Implementation}
+
+\subsubsection{State Machine}
+The master employs a simple two-state state machine:
+
+\textbf{IDLE State}:
+\begin{itemize}
+    \item CYC = 0, STB = 0, BUSY = 0
+    \item Waits for START signal assertion
+    \item On START: transition to BUSY state
+\end{itemize}
+
+\textbf{BUSY State}:
+\begin{itemize}
+    \item CYC = 1, STB = 1, BUSY = 1
+    \item Holds transaction signals until ACK received
+    \item On ACK: deassert signals and return to IDLE state
+\end{itemize}
+
+\subsubsection{Register Operations}
+\begin{lstlisting}[caption=Master State Machine Logic]
+always @(posedge clk or posedge rst)
+begin
+    if (rst)
+    begin
+        cyc <= 0;
+        stb <= 0;
+        we <= 0;
+        adr <= 0;
+        dat_o <= 0;
+        busy <= 0;
+    end
+    else
+    begin
+        // Transition from IDLE to BUSY
+        if (!busy && start)
+        begin
+            cyc <= 1;
+            stb <= 1;
+            we <= 1;
+            adr <= adr_in;
+            dat_o <= dat_in;
+            busy <= 1;
+        end
+        // Transition from BUSY to IDLE
+        else if (busy && ack)
+        begin
+            cyc <= 0;
+            stb <= 0;
+            busy <= 0;
+        end
+    end
+end
+\end{lstlisting}
+
+\subsubsection{Operation Summary}
+\begin{itemize}
+    \item All state changes occur on clock rising edges
+    \item Reset is asynchronous and active-high
+    \item Master initiates transactions via START signal
+    \item BUSY flag prevents overlapping transactions
+    \item Data width is 8 bits for simplicity
+\end{itemize}
+
+\subsection{Slave Implementation}
+
+\subsubsection{Memory Architecture}
+The slave contains an internal 256-byte addressable memory:
+\begin{lstlisting}[caption=Slave Memory Declaration]
+reg [7:0] memory [0:255];
+\end{lstlisting}
+
+\subsubsection{State Machine}
+The slave employs a request-response protocol:
+
+\textbf{IDLE State}:
+\begin{itemize}
+    \item ACK = 0
+    \item Monitors CYC and STB signals
+    \item On CYC=1 and STB=1: process transaction
+\end{itemize}
+
+\textbf{RESPOND State}:
+\begin{itemize}
+    \item ACK = 1 for one clock cycle
+    \item For write: captures DAT\_O into memory[ADR]
+    \item For read: drives DAT\_I with memory[ADR]
+\end{itemize}
+
+\subsubsection{Register Operations}
+\begin{lstlisting}[caption=Slave State Machine Logic]
+always @(posedge clk or posedge rst)
+begin
+    if (rst)
+    begin
+        ack <= 0;
+    end
+    else
+    begin
+        if (cyc && stb)
+        begin
+            ack <= 1;
+            
+            if (we)
+                memory[adr] <= dat_o;   // Write operation
+            else
+                dat_i <= memory[adr];   // Read operation
+        end
+        else
+            ack <= 0;
+    end
+end
+\end{lstlisting}
+
+\subsubsection{Operation Summary}
+\begin{itemize}
+    \item All transactions complete in one clock cycle
+    \item Write operations are synchronous (data captured on clock edge)
+    \item Read operations provide data combinatorially through DAT\_I
+    \item Slave supports full 8-bit address range (0x00 to 0xFF)
+    \item Slave supports all 256 memory locations
+\end{itemize}
+
+%=====================================================
+\section{System Operation}
+%=====================================================
+
+\subsection{Reset Sequence}
+
+Upon assertion of RST:
+\begin{enumerate}
+    \item All flip-flops in master are reset to 0
+    \item All flip-flops in slave are reset to 0
+    \item Bus signals (CYC, STB, WE, ACK) are deasserted
+    \item Both master and slave return to IDLE state
+    \item Memory contents in slave are preserved (not reset)
+\end{enumerate}
+
+\subsection{Normal Operation Flow}
+
+\begin{enumerate}
+    \item System starts with RST = 1 for at least one clock cycle
+    \item RST is deasserted; both master and slave enter normal operation
+    \item External stimulus provides START, ADR\_IN, and DAT\_IN to master
+    \item Master begins transaction as per protocol
+    \item Slave responds with data or acknowledgment
+    \item Transaction completes with CYC and STB deasserted
+    \item System ready for next transaction
+\end{enumerate}
+
+\subsection{Error Handling}
+
+\subsubsection{Invalid Addresses}
+In this implementation, all 256 addresses (0x00-0xFF) are valid and accessible. Out-of-range addresses wrap around due to 8-bit address bus.
+
+\subsubsection{Bus Timeout}
+This specification does not include bus timeout mechanisms. Masters must ensure:
+\begin{itemize}
+    \item Slave responds with ACK within finite time
+    \item No deadlock conditions exist
+    \item All addressed locations are valid
+\end{itemize}
+
+\subsubsection{Multiple Masters}
+If multiple masters are present in the system:
+\begin{itemize}
+    \item An external arbiter must control which master drives the bus
+    \item Only one master can assert CYC at a time
+    \item Arbitration logic is outside this specification
+\end{itemize}
+
+%=====================================================
+\section{Advanced Features}
+%=====================================================
+
+\subsection{Extensibility}
+
+This specification can be extended to support:
+
+\begin{itemize}
+    \item \textbf{Wider Data Paths}: Increase DAT\_O and DAT\_I widths to 16, 32, or 64 bits
+    \item \textbf{Larger Address Space}: Extend ADR width beyond 8 bits for larger memory
+    \item \textbf{Burst Transactions}: Extend protocol to support multiple data transfers per cycle initiation
+    \item \textbf{Byte Enables}: Add SEL (select) signals for sub-word access
+    \item \textbf{Error Signaling}: Add ERR signal for fault conditions
+    \item \textbf{Ready Signals}: Add RDY signal for pipelined transactions
+\end{itemize}
+
+\subsection{Performance Optimization}
+
+\subsubsection{Burst Mode}
+Extend the protocol to support multiple consecutive accesses without releasing the bus:
+\begin{itemize}
+    \item Keep CYC asserted across multiple transactions
+    \item Perform address and data changes between transactions
+    \item Only release bus when all data transfers complete
+\end{itemize}
+
+\subsubsection{Pipelined Transfers}
+Allow new transactions to begin before previous ones complete:
+\begin{itemize}
+    \item Requires additional buffering
+    \item Improves bus utilization
+    \item Requires more complex arbiter logic
+\end{itemize}
+
+%=====================================================
+\section{Verification and Testing}
+%=====================================================
+
+\subsection{Test Cases}
+
+\subsubsection{Write Verification}
+\begin{enumerate}
+    \item Write 0xA5 to address 0x10
+    \item Verify memory location 0x10 contains 0xA5
+    \item Repeat for addresses 0x00, 0x80, 0xFF
+\end{enumerate}
+
+\subsubsection{Read Verification}
+\begin{enumerate}
+    \item Pre-load memory with known patterns
+    \item Read from various addresses
+    \item Verify returned data matches memory contents
+    \item Test all addresses in range
+\end{enumerate}
+
+\subsubsection{Sequential Operations}
+\begin{enumerate}
+    \item Perform multiple read-write sequences
+    \item Verify BUSY signal prevents overlapping operations
+    \item Verify no data corruption
+\end{enumerate}
+
+\subsubsection{Edge Cases}
+\begin{enumerate}
+    \item Test address wraparound (0xFF to 0x00)
+    \item Test boundary addresses (0x00, 0xFF)
+    \item Test all possible 8-bit data values
+    \item Test reset during operation
+\end{enumerate}
+
+\subsection{Functional Coverage}
+
+All operations must achieve functional coverage for:
+\begin{itemize}
+    \item \textbf{Read Operations}: All 256 addresses read with valid data returned
+    \item \textbf{Write Operations}: All 256 addresses written with data correctly stored
+    \item \textbf{Reset Behavior}: Signals correctly initialized on RST
+    \item \textbf{State Transitions}: All master state transitions exercised
+    \item \textbf{ACK Timing}: ACK timing verified across multiple transactions
+\end{itemize}
+
+%=====================================================
+\section{Pin Configuration and Connectivity}
+%=====================================================
+
+\subsection{Master Port Connections}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|l|l|}
+        \hline
+        \textbf{Signal} & \textbf{Master} & \textbf{Slave} \\
+        \hline
+        CLK & Input & Input \\
+        RST & Input & Input \\
+        CYC & Output & Input \\
+        STB & Output & Input \\
+        WE & Output & Input \\
+        ADR[7:0] & Output & Input \\
+        DAT\_O[7:0] & Output & Input \\
+        DAT\_I[7:0] & Input & Output \\
+        ACK & Input & Output \\
+        \hline
+    \end{tabular}
+    \caption{Master-Slave Signal Connectivity}
+\end{table}
+
+\subsection{Interface Matching}
+\begin{itemize}
+    \item All outputs from one module connect to inputs of the other
+    \item Bus signals (CYC, STB, WE, ADR, DAT\_O) are point-to-point from master to slave
+    \item Response signals (ACK, DAT\_I) are point-to-point from slave to master
+    \item Clock and reset are distributed to all modules
+\end{itemize}
+
+%=====================================================
+\section{Application Examples}
+%=====================================================
+
+\subsection{Simple Memory System}
+A basic system with a single master and single slave:
+\begin{itemize}
+    \item Master: Microcontroller or state machine
+    \item Slave: 256-byte RAM
+    \item Application: Memory-mapped I/O and data storage
+\end{itemize}
+
+\subsection{Multi-Slave System}
+Extension to multiple slave devices:
+\begin{itemize}
+    \item Single master drives up to 256 addressable slaves
+    \item Each slave responds to its assigned address range
+    \item Slave selection based on upper address bits
+\end{itemize}
+
+\subsection{Multi-Master System}
+Multiple masters sharing a single bus:
+\begin{itemize}
+    \item Central arbiter grants bus access to masters
+    \item Prevents address conflicts through arbitration
+    \item Requires priority or round-robin arbitration
+\end{itemize}
+
+%=====================================================
+\section{Design Guidelines}
+%=====================================================
+
+\subsection{Clock Domain Recommendations}
+
+\begin{itemize}
+    \item \textbf{Synchronous Design}: All Wishbone signals should operate in the same clock domain
+    \item \textbf{Clock Frequency}: Determined by slowest component in the system
+    \item \textbf{Reset Synchronization}: RST should be synchronized to CLK before distribution
+    \item \textbf{Clock Distribution}: Use a dedicated clock tree to minimize skew
+\end{itemize}
+
+\subsection{Signal Integrity}
+
+\begin{itemize}
+    \item \textbf{Line Termination}: Implement appropriate termination for high-speed designs
+    \item \textbf{Ground Reference}: Maintain clean ground planes for signal integrity
+    \item \textbf{Impedance Control}: Control trace impedance to minimize reflections
+    \item \textbf{Crosstalk}: Route address and data buses away from high-speed signals
+\end{itemize}
+
+\subsection{Power Considerations}
+
+\begin{itemize}
+    \item \textbf{Power Supplies}: Separate supply rails for analog and digital circuits when necessary
+    \item \textbf{Decoupling}: Place bypass capacitors near all power pins
+    \item \textbf{Ground Distribution}: Use multiple vias for low impedance ground connections
+\end{itemize}
+
+%=====================================================
+\section{Electrical Specifications}
+%=====================================================
+
+\subsection{DC Characteristics}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|c|c|}
+        \hline
+        \textbf{Parameter} & \textbf{Min} & \textbf{Max} \\
+        \hline
+        Supply Voltage (VDD) & 3.0 V & 3.6 V \\
+        Logic High (VIH) & 2.0 V & VDD \\
+        Logic Low (VIL) & 0 V & 0.8 V \\
+        Output High (VOH) & VDD-0.2 V & VDD \\
+        Output Low (VOL) & 0 V & 0.2 V \\
+        \hline
+    \end{tabular}
+    \caption{DC Electrical Specifications (Typical for 3.3V CMOS)}
+\end{table}
+
+\subsection{AC Characteristics}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|c|}
+        \hline
+        \textbf{Parameter} & \textbf{Value} \\
+        \hline
+        Setup Time (tSU) & 2 ns (typical) \\
+        Hold Time (tH) & 1 ns (typical) \\
+        Propagation Delay (tPD) & 3 ns (typical) \\
+        Clock-to-Output (tCO) & 5 ns (typical) \\
+        \hline
+    \end{tabular}
+    \caption{AC Timing Characteristics}
+\end{table}
+
+%=====================================================
+\section{Revision History}
+%=====================================================
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|l|}
+        \hline
+        \textbf{Revision} & \textbf{Date} & \textbf{Description} \\
+        \hline
+        1.0 & 2026-04-22 & Initial specification document \\
+        \hline
+    \end{tabular}
+    \caption{Document Revision History}
+\end{table}
+
+%=====================================================
+\section{References and Acknowledgments}
+%=====================================================
+
+\subsection{External Resources}
+\begin{itemize}
+    \item Wishbone Architecture Documentation
+    \item AMBA Bus Protocol Specification
+    \item IEEE Standard 1735 (Intellectual Property Protection)
+\end{itemize}
+
+\subsection{Contributors}
+\begin{itemize}
+    \item Wishbone Open Core Community
+    \item Protocol Implementation Team
+\end{itemize}
+
+\newpage
+\appendix
+
+%=====================================================
+\section{Appendix A: Verilog Module Definitions}
+%=====================================================
+
+\subsection{Master Module}
+
+\begin{lstlisting}[caption=Complete Wishbone Master Module]
+module wishbone_master(
+    input clk,
+    input rst,
+    input ack,
+    input [7:0] dat_i,
+    input start,
+    input [7:0] adr_in,
+    input [7:0] dat_in,
+    
+    output reg cyc,
+    output reg stb,
+    output reg we,
+    output reg [7:0] dat_o,
+    output reg [7:0] adr,
+    output reg busy
+);
+
+always @(posedge clk or posedge rst)
+begin
+    if (rst)
+    begin
+        cyc <= 0;
+        stb <= 0;
+        we <= 0;
+        adr <= 0;
+        dat_o <= 0;
+        busy <= 0;
+    end
+    else
+    begin
+        if (!busy && start)
+        begin
+            cyc <= 1;
+            stb <= 1;
+            we <= 1;
+            adr <= adr_in;
+            dat_o <= dat_in;
+            busy <= 1;
+        end
+        else if (busy && ack)
+        begin
+            cyc <= 0;
+            stb <= 0;
+            busy <= 0;
+        end
+    end
+end
+
+endmodule
+\end{lstlisting}
+
+\subsection{Slave Module}
+
+\begin{lstlisting}[caption=Complete Wishbone Slave Module]
+module wishbone_slave(
+    input clk,
+    input rst,
+    input cyc,
+    input stb,
+    input we,
+    input [7:0] adr,
+    input [7:0] dat_o,
+    
+    output reg ack,
+    output reg [7:0] dat_i
+);
+
+reg [7:0] memory [0:255];
+
+always @(posedge clk or posedge rst)
+begin
+    if (rst)
+    begin
+        ack <= 0;
+    end
+    else
+    begin
+        if (cyc && stb)
+        begin
+            ack <= 1;
+            
+            if (we)
+                memory[adr] <= dat_o;
+            else
+                dat_i <= memory[adr];
+        end
+        else
+            ack <= 0;
+    end
+end
+
+endmodule
+\end{lstlisting}
+
+%=====================================================
+\section{Appendix B: Test Bench Structure}
+%=====================================================
+
+\subsection{Recommended Test Bench Organization}
+
+\begin{lstlisting}[caption=Testbench Framework]
+module wishbone_tb;
+
+reg clk, rst;
+reg [7:0] adr_in, dat_in;
+reg start;
+
+wire cyc, stb, we, ack, busy;
+wire [7:0] adr, dat_o, dat_i;
+
+wishbone_master master(
+    .clk(clk), .rst(rst), .start(start),
+    .adr_in(adr_in), .dat_in(dat_in),
+    .cyc(cyc), .stb(stb), .we(we),
+    .adr(adr), .dat_o(dat_o), .dat_i(dat_i),
+    .ack(ack), .busy(busy)
+);
+
+wishbone_slave slave(
+    .clk(clk), .rst(rst),
+    .cyc(cyc), .stb(stb), .we(we),
+    .adr(adr), .dat_o(dat_o),
+    .ack(ack), .dat_i(dat_i)
+);
+
+initial begin
+    // Test procedures
+end
+
+endmodule
+\end{lstlisting}
+
+%=====================================================
+\section{Appendix C: Address Decoding Examples}
+%=====================================================
+
+\subsection{Multi-Slave Address Decoding}
+
+For systems with multiple slaves, use address decoding:
+
+\begin{lstlisting}[caption=Address Decoder Example]
+// Slave 0: addresses 0x00-0x3F
+// Slave 1: addresses 0x40-0x7F
+// Slave 2: addresses 0x80-0xBF
+// Slave 3: addresses 0xC0-0xFF
+
+wire slave0_sel = (adr[7:6] == 2'b00);
+wire slave1_sel = (adr[7:6] == 2'b01);
+wire slave2_sel = (adr[7:6] == 2'b10);
+wire slave3_sel = (adr[7:6] == 2'b11);
+\end{lstlisting}
+
+%=====================================================
+\section{Appendix D: Glossary}
+%=====================================================
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|p{3cm}|p{7cm}|}
+        \hline
+        \textbf{Term} & \textbf{Definition} \\
+        \hline
+        ACK & Acknowledge signal from slave indicating transaction completion \\
+        ADR & Address bus carrying memory or register location \\
+        Bus Cycle & Complete transaction from CYC assertion to ACK \\
+        CYC & Cycle signal indicating active bus transaction \\
+        DAT & Data bus (DAT\_O for output, DAT\_I for input) \\
+        Master & Initiator of bus transactions \\
+        Slave & Responder to bus transactions \\
+        STB & Strobe signal indicating valid address and data \\
+        WE & Write Enable signal (1=write, 0=read) \\
+        \hline
+    \end{tabular}
+    \caption{Glossary of Terms}
+\end{table}
+
+%=====================================================
+\end{document}
